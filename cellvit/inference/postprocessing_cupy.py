@@ -10,7 +10,6 @@ from torch import nn
 import cupy as cp
 import cv2
 import numpy as np
-import ray
 import torch
 import torch.nn.functional as F
 from cupyx.scipy.ndimage import label
@@ -580,7 +579,6 @@ class DetectionCellPostProcessorCupy:
         return int(inst_type), float(type_prob)
 
 
-@ray.remote(num_cpus=8, num_gpus=0.1)
 class BatchPoolingActor:
     def __init__(
         self,

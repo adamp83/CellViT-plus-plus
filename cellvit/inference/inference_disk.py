@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Callable, List, Literal, Union, Tuple
 
 import numpy as np
-import ray
 import torch
 import torch.nn as nn
 import tqdm
@@ -101,7 +100,6 @@ class CellViTInference:
         classifier (nn.Module): Classifier module if provided. Default is Npone
         binary (bool): If just a binary detection/segmentation should be performed. Defaults to False.
         model_arch (str): Model architecture as str
-        ray_actors (int): Number of ray actors
         num_workers (int): Number of workers for DataLoader
 
     Methods:
@@ -163,7 +161,6 @@ class CellViTInference:
         self.binary: bool = binary
         self.model_arch: str
         self.num_workers: int
-        self.ray_actors: int
 
         # hand over parameters
         self.model_path = Path(model_path)
@@ -372,20 +369,12 @@ class CellViTInference:
 
     def _setup_worker(self) -> None:
         """Setup the worker for inference"""
-        runtime_env = {
-            "env_vars": {
-                "PYTHONPATH": project_root
-            }
-        }
-        ray.init(num_cpus=os.cpu_count() - 2, runtime_env=runtime_env)
         # workers for loading data
         num_workers = int(3 / 4 * os.cpu_count())
         if num_workers is None:
             num_workers = 16
         num_workers = int(np.clip(num_workers, 1, 4 * self.batch_size))
         self.num_workers = num_workers
-        self.ray_actors = int(np.clip(1 / 2 * self.batch_size, 4, 8))
-        self.logger.info(f"Using {self.ray_actors} ray-workers")
 
     def process_wsi(
         self,
@@ -427,12 +416,8 @@ class CellViTInference:
             resolution=resolution,
         )
 
-        # create ray actors for batch-wise postprocessing
-        batch_pooling_actors = [
-            BatchPoolingActor.remote(postprocessor, self.run_conf)
-            for i in range(self.ray_actors)
-        ]
-        call_ids = []
+        batch_pooling_actor = BatchPoolingActor(postprocessor, self.run_conf)
+        inference_results = []
 
         with torch.no_grad():
             pbar = tqdm.tqdm(
@@ -441,7 +426,6 @@ class CellViTInference:
             for batch_num, batch in enumerate(wsi_inference_dataloader):
                 patches = batch[0].to(self.device)
                 metadata = batch[1]
-                batch_actor = batch_pooling_actors[batch_num % self.ray_actors]
 
                 if self.mixed_precision:
                     with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -449,16 +433,12 @@ class CellViTInference:
                 else:
                     predictions = self.model.forward(patches, retrieve_tokens=True)
                 predictions = self.apply_softmax_reorder(predictions)
-                call_id = batch_actor.convert_batch_to_graph_nodes.remote(
+                result = batch_pooling_actor.convert_batch_to_graph_nodes(
                     predictions, metadata
                 )
-                call_ids.append(call_id)
+                inference_results.append(result)
                 pbar.update(1)
-
-            self.logger.info("Waiting for final batches to be processed...")
-            inference_results = [ray.get(call_id) for call_id in call_ids]
         del pbar
-        [ray.kill(batch_actor) for batch_actor in batch_pooling_actors]
 
         # unpack inference results
         cell_dict_wsi = []  # for storing all cell information

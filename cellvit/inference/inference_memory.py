@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Union
 
 import pandas as pd
-import ray
 import torch
 import tqdm
 import ujson
@@ -134,13 +133,8 @@ class CellViTInferenceMemory(CellViTInference):
             binary=self.binary,
         )
 
-        # create ray actors for batch-wise postprocessing
-        batch_pooling_actors = [
-            BatchPoolingActor.remote(postprocessor, self.run_conf)
-            for i in range(self.ray_actors)
-        ]
-
-        call_ids = []
+        batch_pooling_actor = BatchPoolingActor(postprocessor, self.run_conf)
+        inference_results = []
 
         self.logger.info("Extracting cells using CellViT...")
         with torch.no_grad():
@@ -150,7 +144,6 @@ class CellViTInferenceMemory(CellViTInference):
             for batch_num, batch in enumerate(wsi_inference_dataloader):
                 patches = batch[0].to(self.device)
                 metadata = batch[1]
-                batch_actor = batch_pooling_actors[batch_num % self.ray_actors]
 
                 if self.mixed_precision:
                     with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -158,17 +151,13 @@ class CellViTInferenceMemory(CellViTInference):
                 else:
                     predictions = self.model.forward(patches, retrieve_tokens=True)
                 predictions = self.apply_softmax_reorder(predictions)
-                call_id = batch_actor.convert_batch_to_graph_nodes.remote(
+                result = batch_pooling_actor.convert_batch_to_graph_nodes(
                     predictions, metadata
                 )
-                call_ids.append(call_id)
+                inference_results.append(result)
                 pbar.update(1)
                 pbar.total = len(wsi_inference_dataloader)
-
-            self.logger.info("Waiting for final batches to be processed...")
-            inference_results = [ray.get(call_id) for call_id in call_ids]
         del pbar
-        [ray.kill(batch_actor) for batch_actor in batch_pooling_actors]
 
         # unpack inference results
         cell_dict_wsi = []  # for storing all cell information
