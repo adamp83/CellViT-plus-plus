@@ -9,6 +9,8 @@ ENV PYTHONPATH="/app"
 # as a plugin for WSI formats (NDPI, SVS, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
+    gcc \
+    libc6-dev \
     libvips \
     libopenslide0 \
     libsnappy1v5 \
