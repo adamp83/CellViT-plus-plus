@@ -5,9 +5,12 @@ ENV PATH="/opt/conda/bin:$PATH"
 ENV PYTHONPATH="/app"
 
 # System libraries required by vips and snappy
+# libopenslide0 must be installed at the system level so libvips can find it
+# as a plugin for WSI formats (NDPI, SVS, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     libvips \
+    libopenslide0 \
     libsnappy1v5 \
     libglib2.0-0 \
     libgomp1 \
