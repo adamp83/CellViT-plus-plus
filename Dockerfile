@@ -29,9 +29,9 @@ ENV PATH="/opt/conda/envs/cellvit_env/bin:$PATH"
 
 # PyTorch (not in conda env — install separately with correct CUDA index)
 RUN pip install --no-cache-dir \
-    torch==2.2.2+cu120 \
-    torchvision==0.17.2+cu120 \
-    --index-url https://download.pytorch.org/whl/cu120
+    torch==2.3.0+cu118 \
+    torchvision==0.18.0+cu118 \
+    --index-url https://download.pytorch.org/whl/cu118
 
 # Copy source code
 COPY . /app
