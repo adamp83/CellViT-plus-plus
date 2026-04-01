@@ -4,10 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/opt/conda/bin:$PATH"
 ENV PYTHONPATH="/app"
 
-# System libraries required by openslide, vips, and snappy
+# System libraries required by vips and snappy
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
-    libopenslide0 \
     libvips \
     libsnappy1v5 \
     libglib2.0-0 \
