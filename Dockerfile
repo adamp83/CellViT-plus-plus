@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:12.0.1-cudnn8-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/opt/conda/bin:$PATH"
@@ -29,9 +29,9 @@ ENV PATH="/opt/conda/envs/cellvit_env/bin:$PATH"
 
 # PyTorch (not in conda env — install separately with correct CUDA index)
 RUN pip install --no-cache-dir \
-    torch==2.3.0+cu121 \
-    torchvision==0.18.0+cu121 \
-    --index-url https://download.pytorch.org/whl/cu121
+    torch==2.3.0+cu120 \
+    torchvision==0.18.0+cu120 \
+    --index-url https://download.pytorch.org/whl/cu120
 
 # Copy source code
 COPY . /app
